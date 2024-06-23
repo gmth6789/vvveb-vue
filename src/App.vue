@@ -1,30 +1,54 @@
-<script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
-</script>
-
 <template>
-  <div>
-    <a href="https://vitejs.dev" target="_blank">
-      <img src="/vite.svg" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://vuejs.org/" target="_blank">
-      <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-    </a>
-  </div>
-  <HelloWorld msg="Vite + Vue" />
+  <Screen v-if="screening" />
+  <Editor v-else-if="_isPC" />
+  <Mobile v-else />
 </template>
 
-<style scoped>
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
+
+<script lang="ts" setup>
+import { onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useScreenStore, useMainStore, useSnapshotStore } from '@/store'
+import { LOCALSTORAGE_KEY_DISCARDED_DB } from '@/configs/storage'
+import { deleteDiscardedDB } from '@/utils/database'
+import { isPC } from './utils/common'
+
+import Editor from './views/Editor/index.vue'
+import Screen from './views/Screen/index.vue'
+import Mobile from './views/Mobile/index.vue'
+
+const _isPC = isPC()
+
+const mainStore = useMainStore()
+const snapshotStore = useSnapshotStore()
+const { databaseId } = storeToRefs(mainStore)
+const { screening } = storeToRefs(useScreenStore())
+
+if (import.meta.env.MODE !== 'development') {
+  window.onbeforeunload = () => false
 }
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
+
+onMounted(async () => {
+  await deleteDiscardedDB()
+  snapshotStore.initSnapshotDatabase()
+  mainStore.setAvailableFonts()
+})
+
+// 应用注销时向 localStorage 中记录下本次 indexedDB 的数据库ID，用于之后清除数据库
+window.addEventListener('unload', () => {
+  const discardedDB = localStorage.getItem(LOCALSTORAGE_KEY_DISCARDED_DB)
+  const discardedDBList: string[] = discardedDB ? JSON.parse(discardedDB) : []
+
+  discardedDBList.push(databaseId.value)
+
+  const newDiscardedDB = JSON.stringify(discardedDBList)
+  localStorage.setItem(LOCALSTORAGE_KEY_DISCARDED_DB, newDiscardedDB)
+})
+</script>
+
+
+<style lang="scss">
+#app {
+  height: 100%;
 }
 </style>
